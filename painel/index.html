@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Painel de Leads</title>
+<style>
+  *{box-sizing:border-box;}
+  body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;background:#0F1722;color:#E7ECF3;margin:0;padding:24px;}
+  h1{font-size:1.25rem;font-weight:700;margin:0;}
+  #gate{max-width:340px;margin:100px auto;text-align:center;}
+  #gate p{color:#9FB2C8;font-size:14px;}
+  input{width:100%;padding:11px 12px;border-radius:9px;border:1px solid #2A3648;background:#141D2B;color:#fff;margin-top:10px;font-size:14px;}
+  button{margin-top:12px;padding:11px 20px;border-radius:9px;border:0;background:#0F6E6A;color:#fff;cursor:pointer;font-weight:700;font-size:14px;width:100%;}
+  button:hover{filter:brightness(1.08);}
+  #panel{display:none;max-width:1000px;margin:0 auto;}
+  .head{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:8px;}
+  #count{color:#D9A94A;font-weight:800;}
+  #status{font-size:12px;color:#7C8DA3;margin-top:6px;}
+  table{width:100%;border-collapse:collapse;margin-top:18px;font-size:14px;}
+  th,td{padding:10px 12px;border-bottom:1px solid #1F2A3A;text-align:left;vertical-align:top;}
+  th{color:#9FB2C8;font-weight:700;text-transform:uppercase;font-size:10.5px;letter-spacing:.06em;}
+  tr:hover td{background:#141D2B;}
+  #empty{color:#7C8DA3;font-size:14px;margin-top:20px;}
+</style>
+</head>
+<body>
+
+  <div id="gate">
+    <h1>Painel de Leads</h1>
+    <p>Mapas Reta Final Transpetro &middot; acesso restrito</p>
+    <input type="password" id="key" placeholder="Chave de acesso" onkeydown="if(event.key==='Enter')unlock()">
+    <button onclick="unlock()">Entrar</button>
+    <p id="gateMsg" style="color:#e07a7a"></p>
+  </div>
+
+  <div id="panel">
+    <div class="head">
+      <h1>Leads recebidos (<span id="count">0</span>)</h1>
+      <div id="status">Carregando...</div>
+    </div>
+    <table id="tbl" style="display:none">
+      <thead><tr><th>Data/Hora</th><th>Nome</th><th>E-mail</th><th>Ênfase</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div id="empty" style="display:none">Nenhum lead recebido ainda.</div>
+  </div>
+
+<script>
+  var key = localStorage.getItem('leadsKey') || '';
+
+  function unlock(){
+    key = document.getElementById('key').value.trim();
+    if(!key) return;
+    localStorage.setItem('leadsKey', key);
+    showPanel();
+  }
+
+  function showPanel(){
+    document.getElementById('gate').style.display = 'none';
+    document.getElementById('panel').style.display = 'block';
+    load();
+    setInterval(load, 30000);
+  }
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+
+  async function load(){
+    try{
+      var r = await fetch('/api/leads?key=' + encodeURIComponent(key));
+      if(r.status === 401){
+        localStorage.removeItem('leadsKey');
+        document.getElementById('gateMsg').textContent = 'Chave invalida.';
+        document.getElementById('panel').style.display = 'none';
+        document.getElementById('gate').style.display = 'block';
+        return;
+      }
+      var data = await r.json();
+      document.getElementById('count').textContent = data.length;
+      document.getElementById('status').textContent = 'Atualizado as ' + new Date().toLocaleTimeString('pt-BR');
+      if(data.length === 0){
+        document.getElementById('tbl').style.display = 'none';
+        document.getElementById('empty').style.display = 'block';
+        return;
+      }
+      document.getElementById('empty').style.display = 'none';
+      document.getElementById('tbl').style.display = 'table';
+      document.getElementById('rows').innerHTML = data.map(function(d){
+        var dt = new Date(d.ts).toLocaleString('pt-BR');
+        return '<tr><td>' + dt + '</td><td>' + escapeHtml(d.nome) + '</td><td>' + escapeHtml(d.email) + '</td><td>' + escapeHtml(d.enfase) + '</td></tr>';
+      }).join('');
+    }catch(e){
+      document.getElementById('status').textContent = 'Erro ao carregar.';
+    }
+  }
+
+  if(key){ showPanel(); }
+</script>
+</body>
+</html>
